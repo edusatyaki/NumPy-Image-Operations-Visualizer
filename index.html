@@ -611,7 +611,7 @@ input[type=range]::-webkit-slider-thumb{
   <div class="col col-fns">
     <div class="fn-col-header">
       Merge Operations
-      <span class="fn-count">8 ops</span>
+      <span class="fn-count">10 ops</span>
     </div>
     <div class="fn-list-wrap">
       <div class="fn-grid" id="mg-fn-grid"></div>
@@ -678,6 +678,24 @@ const MERGE = [
    apply(a,b,d,w,h){for(let i=0;i<w*h*4;i+=4){d[i]=a[i]^b[i];d[i+1]=a[i+1]^b[i+1];d[i+2]=a[i+2]^b[i+2];d[i+3]=255;}}},
   {name:'np.abs(A − B)',        sym:'|A−B|',needsAlpha:false, desc:'Absolute difference — detect changes',
    apply(a,b,d,w,h){for(let i=0;i<w*h*4;i+=4){d[i]=Math.abs(a[i]-b[i]);d[i+1]=Math.abs(a[i+1]-b[i+1]);d[i+2]=Math.abs(a[i+2]-b[i+2]);d[i+3]=255;}}},
+  {name:'np.hstack([A, B])',    sym:'A|B',  needsAlpha:false, noResize:true, desc:'Stack arrays column-wise — side by side',
+   outSize:(a,b)=>({w:a.width+b.width,h:Math.max(a.height,b.height)}),
+   apply(a,b,d,w,h){
+     for(let i=0;i<d.length;i+=4){d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=255;}
+     const offA=Math.floor((h-a.height)/2);
+     for(let y=0;y<a.height;y++)for(let x=0;x<a.width;x++){const si=(y*a.width+x)*4,di=((y+offA)*w+x)*4;d[di]=a.data[si];d[di+1]=a.data[si+1];d[di+2]=a.data[si+2];d[di+3]=a.data[si+3];}
+     const offB=Math.floor((h-b.height)/2);
+     for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const si=(y*b.width+x)*4,di=((y+offB)*w+a.width+x)*4;d[di]=b.data[si];d[di+1]=b.data[si+1];d[di+2]=b.data[si+2];d[di+3]=b.data[si+3];}
+   }},
+  {name:'np.vstack([A, B])',    sym:'A/B',  needsAlpha:false, noResize:true, desc:'Stack arrays row-wise — top over bottom',
+   outSize:(a,b)=>({w:Math.max(a.width,b.width),h:a.height+b.height}),
+   apply(a,b,d,w,h){
+     for(let i=0;i<d.length;i+=4){d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=255;}
+     const offA=Math.floor((w-a.width)/2);
+     for(let y=0;y<a.height;y++)for(let x=0;x<a.width;x++){const si=(y*a.width+x)*4,di=(y*w+x+offA)*4;d[di]=a.data[si];d[di+1]=a.data[si+1];d[di+2]=a.data[si+2];d[di+3]=a.data[si+3];}
+     const offB=Math.floor((w-b.width)/2);
+     for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const si=(y*b.width+x)*4,di=((y+a.height)*w+x+offB)*4;d[di]=b.data[si];d[di+1]=b.data[si+1];d[di+2]=b.data[si+2];d[di+3]=b.data[si+3];}
+   }},
 ];
 
 /* ═══════════════════════════════════════════════
@@ -994,13 +1012,21 @@ function applyMerge(idx) {
   if(!mgDataA||!mgDataB) return;
   if(mgActiveIdx===idx){resetMerge();return;}
   const fn=MERGE[idx];
-  const bR=resizeMatch(mgDataA,mgDataB);
-  const {width:w,height:h}=mgDataA;
   const rc=document.getElementById('mg-result');
-  rc.width=w; rc.height=h;
   const ctx=rc.getContext('2d');
-  const res=ctx.createImageData(w,h);
-  fn.apply(mgDataA.data,bR.data,res.data,w,h,alphaVal);
+  let res;
+  if(fn.noResize) {
+    const {w,h}=fn.outSize(mgDataA,mgDataB);
+    rc.width=w; rc.height=h;
+    res=ctx.createImageData(w,h);
+    fn.apply(mgDataA,mgDataB,res.data,w,h);
+  } else {
+    const bR=resizeMatch(mgDataA,mgDataB);
+    const {width:w,height:h}=mgDataA;
+    rc.width=w; rc.height=h;
+    res=ctx.createImageData(w,h);
+    fn.apply(mgDataA.data,bR.data,res.data,w,h,alphaVal);
+  }
   ctx.putImageData(res,0,0);
   mgActiveIdx=idx;
   setTag('mg',fn.name,false);
